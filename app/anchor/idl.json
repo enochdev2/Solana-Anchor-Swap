@@ -1,0 +1,167 @@
+{
+  "address": "3Dz8ofmvtfGHZhEXdqQSNftNbpnXJcUwrK231aamwDiD",
+  "metadata": {
+    "name": "todo_solana",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Created with Anchor"
+  },
+  "instructions": [
+    {
+      "name": "add_todo",
+      "discriminator": [188, 16, 45, 145, 4, 5, 188, 75],
+      "accounts": [
+        {
+          "name": "signer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "todo_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [84, 79, 68, 79, 95, 65, 67, 67]
+              },
+              {
+                "kind": "account",
+                "path": "signer"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "description",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "initialize_pda",
+      "discriminator": [178, 254, 136, 212, 127, 85, 171, 210],
+      "accounts": [
+        {
+          "name": "signer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "todo_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [84, 79, 68, 79, 95, 65, 67, 67]
+              },
+              {
+                "kind": "account",
+                "path": "signer"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "update_todo",
+      "discriminator": [105, 8, 31, 183, 159, 73, 203, 134],
+      "accounts": [
+        {
+          "name": "signer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "todo_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [84, 79, 68, 79, 95, 65, 67, 67]
+              },
+              {
+                "kind": "account",
+                "path": "signer"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "index",
+          "type": "u8"
+        },
+        {
+          "name": "is_completed",
+          "type": "bool"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "TodoState",
+      "discriminator": [232, 39, 87, 92, 45, 186, 14, 13]
+    }
+  ],
+  "types": [
+    {
+      "name": "Todo",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "description",
+            "type": "string"
+          },
+          {
+            "name": "is_completed",
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TodoState",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "key",
+            "type": "pubkey"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "todos",
+            "type": {
+              "vec": {
+                "defined": {
+                  "name": "Todo"
+                }
+              }
+            }
+          },
+          {
+            "name": "total_todos",
+            "type": "u64"
+          }
+        ]
+      }
+    }
+  ]
+}
