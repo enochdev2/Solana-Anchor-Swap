@@ -110,63 +110,7 @@ pub mod spl_token {
                 Ok(())
             }
 
-            /* 
-            ===========================================================
-                buy_with_usdt function use BuyWithUsdt struct
-            ===========================================================
-        */
-            pub fn buy_with_usdt(
-                ctx: Context<BuyWithUsdt>,
-                _ico_ata_for_ico_program_bump: u8,
-                usdt_amount: u64,
-            ) -> Result<()> {
-                // transfer USDT from user to the admin ATA
-                let cpi_ctx = CpiContext::new(
-                    ctx.accounts.token_program.to_account_info(),
-                    token::Transfer {
-                        from: ctx.accounts.usdt_ata_for_user.to_account_info(),
-                        to: ctx.accounts.usdt_ata_for_admin.to_account_info(),
-                        authority: ctx.accounts.user.to_account_info(),
-                    },
-                );
-                token::transfer(cpi_ctx, usdt_amount)?;
-                msg!("transfer {} usdt to admin.", usdt_amount);
-
-                // transfer ICO from program to the user ATA
-                let ico_amount = usdt_amount * ctx.accounts.data.usdt;
-                let ico_mint_address = ctx.accounts.ico_mint.key();
-                let seeds = &[ico_mint_address.as_ref(), &[_ico_ata_for_ico_program_bump]];
-                let signer = [&seeds[..]];
-                let cpi_ctx = CpiContext::new_with_signer(
-                    ctx.accounts.token_program.to_account_info(),
-                    token::Transfer {
-                        from: ctx.accounts.ico_ata_for_ico_program.to_account_info(),
-                        to: ctx.accounts.ico_ata_for_user.to_account_info(),
-                        authority: ctx.accounts.ico_ata_for_ico_program.to_account_info(),
-                    },
-                    &signer,
-                );
-                token::transfer(cpi_ctx, ico_amount)?;
-                msg!("transfer {} ico to buyer/user.", ico_amount);
-                Ok(())
-            }
-
-            /* 
-            ===========================================================
-                update_data function use UpdateData struct
-            ===========================================================
-        */
-            pub fn update_data(ctx: Context<UpdateData>, sol_price: u64, usdt_price: u64) -> ProgramResult {
-        if ctx.accounts.data.admin != *ctx.accounts.admin.key {
-            return Err(ProgramError::IncorrectProgramId);
-        }
-        let data = &mut ctx.accounts.data;
-        data.sol = sol_price;
-        data.usdt = usdt_price;
-        msg!("update SOL/ICO {} and USDT/ICO {}", sol_price, usdt_price);
-        Ok(())
-
-    }
+           
 }
 
     /* 
