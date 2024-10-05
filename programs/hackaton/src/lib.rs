@@ -39,11 +39,11 @@ pub mod hackaton {
             // msg!("send {} ICO to program ATA.", ico_amount);
 
             // save data in data PDA
-            let data = &mut ctx.accounts.data;
-            // data.sol = sol_price;
-            // data.usdt = usdt_price;
-            data.admin = *ctx.accounts.admin.key;
-            msg!("save data in program PDA.");
+            // let data = &mut ctx.accounts.data;
+            // // data.sol = sol_price;
+            // // data.usdt = usdt_price;
+            // data.admin = *ctx.accounts.admin.key;
+            // msg!("save data in program PDA.");
             Ok(())
         }
 
@@ -196,8 +196,8 @@ pub struct InitIcoATA<'info> {
     )]
     pub ico_ata_for_ico_program: Account<'info, TokenAccount>,
 
-    #[account(init, payer=admin, space=9000, seeds=[b"data", admin.key().as_ref()], bump)]
-    pub data: Account<'info, Data>,
+    // #[account(init, payer=admin, space=9000, seeds=[b"data", admin.key().as_ref()], bump)]
+    // pub data: Account<'info, Data>,
 
     #[account(
     address = CUSTOM_USDT_MINT.parse::<Pubkey>().unwrap(),
@@ -234,12 +234,12 @@ pub struct BuyWithSol<'info> {
     )]
     pub ico_ata_for_ico_program: Account<'info, TokenAccount>,
     
-    #[account(mut)]
-    pub data: Account<'info, Data>,
+    // #[account(mut)]
+    // pub data: Account<'info, Data>,
 
     #[account(
     address = CUSTOM_USDT_MINT.parse::<Pubkey>().unwrap(),
-)]
+    )]
     pub ico_mint: Account<'info, Mint>,
 
     #[account(
