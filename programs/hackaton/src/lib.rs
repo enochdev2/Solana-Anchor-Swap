@@ -504,35 +504,35 @@ pub enum ErrorCode {
 
 
 
-    #[derive(Accounts)]
-    #[instruction(_ico_ata_for_ico_program_bump: u8)]
-    pub struct BuyWithUsdt<'info> {
-        #[account(
-        mut,
-        seeds = [ ico_mint.key().as_ref() ],
-        bump = _ico_ata_for_ico_program_bump,
-        )]
-        pub ico_ata_for_ico_program: Account<'info, TokenAccount>,
+    // #[derive(Accounts)]
+    // #[instruction(_ico_ata_for_ico_program_bump: u8)]
+    // pub struct BuyWithUsdt<'info> {
+    //     #[account(
+    //     mut,
+    //     seeds = [ ico_mint.key().as_ref() ],
+    //     bump = _ico_ata_for_ico_program_bump,
+    //     )]
+    //     pub ico_ata_for_ico_program: Account<'info, TokenAccount>,
     
-        // #[account(mut)]
-        // pub data: Account<'info, Data>,
+    //     // #[account(mut)]
+    //     // pub data: Account<'info, Data>,
     
-        #[account(
-        address = CUSTOM_USDT_MINT.parse::<Pubkey>().unwrap(),
-        )]
-        pub ico_mint: Account<'info, Mint>,
+    //     #[account(
+    //     address = CUSTOM_USDT_MINT.parse::<Pubkey>().unwrap(),
+    //     )]
+    //     pub ico_mint: Account<'info, Mint>,
     
-        #[account(mut)]
-        pub ico_ata_for_user: Account<'info, TokenAccount>,
+    //     #[account(mut)]
+    //     pub ico_ata_for_user: Account<'info, TokenAccount>,
     
-        #[account(mut)]
-        pub usdt_ata_for_user: Account<'info, TokenAccount>,
+    //     #[account(mut)]
+    //     pub usdt_ata_for_user: Account<'info, TokenAccount>,
     
-        #[account(mut)]
-        pub usdt_ata_for_admin: Account<'info, TokenAccount>,
+    //     #[account(mut)]
+    //     pub usdt_ata_for_admin: Account<'info, TokenAccount>,
     
-        #[account(mut)]
-        pub user: Signer<'info>,
+    //     #[account(mut)]
+    //     pub user: Signer<'info>,
     
-        pub token_program: Program<'info, Token>,
-    }
+    //     pub token_program: Program<'info, Token>,
+    // }
