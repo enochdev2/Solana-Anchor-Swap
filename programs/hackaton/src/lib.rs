@@ -10,7 +10,7 @@ use std::str::FromStr;
 // use solana_program::program::invoke;
 // use solana_program::system_instruction::transfer;
 
-declare_id!("9ir8oVpuuA7wfsFwpgtBdAZRBRXBucW61ZaKA4E8TAbv");
+declare_id!("EadAeXF1xWgLFvDrupAPRgrVGW1HBm6omeX36nRhcsLn");
 
 const SOL_USDC_FEED: &str = "EdVCmQ9FSPcVe5YySXDPCRmc8aDQLKJ9xvYBMZPie1Vw";
 const STALENESS_THRESHOLD: u64 = 6000000; // staleness threshold in seconds
@@ -20,6 +20,292 @@ const CUSTOM_USDT_MINT: &str = "8rRGXfEfawfkzdTg9QVJpDuKBhBF1Ab3gzRt3tMsTSTK";
 #[program]
 pub mod hackaton {
     use super::*;
+
+
+        pub fn create_ico_ata(
+            ctx: Context<InitIcoATA>,
+        ) -> Result<()> {
+            msg!("create program ATA for hold ICO");
+            // transfer ICO admin to program ata
+            // let cpi_ctx = CpiContext::new(
+            //     ctx.accounts.token_program.to_account_info(),
+            //     token::Transfer {
+            //         from: ctx.accounts.ico_ata_for_admin.to_account_info(),
+            //         to: ctx.accounts.ico_ata_for_ico_program.to_account_info(),
+            //         authority: ctx.accounts.admin.to_account_info(),
+            //     },
+            // );
+            // token::transfer(cpi_ctx, ico_amount)?;
+            // msg!("send {} ICO to program ATA.", ico_amount);
+
+            // save data in data PDA
+            let data = &mut ctx.accounts.data;
+            // data.sol = sol_price;
+            // data.usdt = usdt_price;
+            data.admin = *ctx.accounts.admin.key;
+            msg!("save data in program PDA.");
+            Ok(())
+        }
+
+
+        pub fn buy_with_sol(
+            ctx: Context<BuyWithSol>,
+            _ico_ata_for_ico_program_bump: u8,
+            sol_amount: u64,
+        ) -> Result<()> {
+
+            // Use the SOL/USDT oracle price feed from the constant
+            let oracle_price_feed = ctx.accounts.oracle_price_feed.to_account_info();
+            if oracle_price_feed.key().to_string() != SOL_USDC_FEED {
+                return Err(ErrorCode::InvalidPriceFeed.into());
+            }
+
+            //     Fetch the SOL/USDC price from Pyth
+            let sol_usdt_price = fetch_pyth_price(&oracle_price_feed)? as u128;
+        
+            // Convert SOL amount to u128 for precision
+            let sol_amount_u128 = sol_amount as u128;
+
+        
+            // // Adjust for SOL decimals (9 decimals for SOL tokens)
+            // Calculate the USDT amount, adjusting for SOL decimals (9 decimals for SOL tokens)
+            let usdt_amount = sol_amount_u128
+                .checked_mul(sol_usdt_price) // Multiply SOL amount by the price
+                .unwrap()
+                .checked_div(1_000_000_000)  // Adjust for SOL decimals
+                .unwrap() as u64;
+
+                // transfer sol from user to admin
+                let ix = anchor_lang::solana_program::system_instruction::transfer(
+                    &ctx.accounts.user.key(),
+                    &ctx.accounts.admin.key(),
+                    sol_amount,
+                );
+                anchor_lang::solana_program::program::invoke(
+                    &ix,
+                    &[
+                        ctx.accounts.user.to_account_info(),
+                        ctx.accounts.admin.to_account_info(),
+                    ],
+                )?;
+                msg!("transfer {} sol to admin.", sol_amount);
+
+            // transfer ICO from program to user ATA
+            // let ico_amount = sol_amount * ctx.accounts.data.sol;
+            let ico_mint_address = ctx.accounts.ico_mint.key();
+            let seeds = &[ico_mint_address.as_ref(), &[_ico_ata_for_ico_program_bump]];
+            let signer = [&seeds[..]];
+            let cpi_ctx = CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                token::Transfer {
+                    from: ctx.accounts.ico_ata_for_ico_program.to_account_info(),
+                    to: ctx.accounts.ico_ata_for_user.to_account_info(),
+                    authority: ctx.accounts.ico_ata_for_ico_program.to_account_info(),
+                },
+                &signer,
+            );
+            token::transfer(cpi_ctx, usdt_amount)?;
+            msg!("transfer {} ico to buyer/user.", usdt_amount);
+            Ok(())
+        }
+
+
+
+        pub fn buy_with_usdt(
+            ctx: Context<BuyWithSol>,
+            _ico_ata_for_ico_program_bump: u8,
+            usdt_amount: u64
+        ) -> Result<()> {
+
+                // Use the SOL/USDT oracle price feed from the constant
+            let oracle_price_feed = ctx.accounts.oracle_price_feed.to_account_info();
+            if oracle_price_feed.key().to_string() != SOL_USDC_FEED {
+                return Err(ErrorCode::InvalidPriceFeed.into());
+            }
+
+            //     Fetch the SOL/USDC price from Pyth
+            let sol_usdc_price = fetch_pyth_price(&oracle_price_feed)? as u128;
+        
+            // // Convert USDC amount to u128 for precision
+            let usdc_amount_u128 = usdt_amount as u128;
+        
+            // // Adjust for SOL decimals (9 decimals for SOL tokens)
+            let sol_amount = usdc_amount_u128
+                .checked_mul(1_000_000_000)  // Adjust for SOL decimals
+                .unwrap()
+                .checked_div(sol_usdc_price)
+                .unwrap() as u64;
+
+            
+            // transfer ICO from program to user ATA
+            // let ico_amount = sol_amount * ctx.accounts.data.sol;
+            let ico_mint_address = ctx.accounts.ico_mint.key();
+                let seeds = &[ico_mint_address.as_ref(), &[_ico_ata_for_ico_program_bump]];
+            let signer = [&seeds[..]];
+            let cpi_ctx = CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                token::Transfer {
+                    from: ctx.accounts.ico_ata_for_user.to_account_info(),
+                    to: ctx.accounts.ico_ata_for_ico_program.to_account_info(),
+                    authority: ctx.accounts.user.to_account_info(),
+                },
+                &signer,
+            );
+            token::transfer(cpi_ctx, sol_amount)?;
+            msg!("transfer {} ico to buyer/user.", sol_amount);
+            
+            
+            // transfer sol from admin to user
+            **ctx.accounts.admin.to_account_info().try_borrow_mut_lamports()? -= sol_amount;
+            **ctx.accounts.user.to_account_info().try_borrow_mut_lamports()? += sol_amount;
+            // let ix = anchor_lang::solana_program::system_instruction::transfer(
+            //     &ctx.accounts.user.key(),
+            //     &ctx.accounts.admin.key(),
+            //     usdt_amount,
+            // );
+            // anchor_lang::solana_program::program::invoke(
+            //     &ix,
+            //     &[
+            //         ctx.accounts.user.to_account_info(),
+            //         ctx.accounts.admin.to_account_info(),
+            //     ],
+            // )?;
+            msg!("transfer {} sol to admin.", sol_amount);
+
+            Ok(())
+        }
+        
+
+
+}
+
+
+#[derive(Accounts)]
+pub struct InitIcoATA<'info> {
+    // 1. PDA (pubkey) for ico ATA for our program.
+    // seeds: [ico_mint + current program id] => "HashMap[seeds+bump] = pda"
+    // token::mint: Token Program wants to know what kind of token this ATA is for
+    // token::authority: It's a PDA so the authority is itself!
+    #[account(
+    init,
+    payer = admin,
+    seeds = [ CUSTOM_USDT_MINT.parse::<Pubkey>().unwrap().as_ref() ],
+    bump,
+    token::mint = ico_mint,
+    token::authority = ico_ata_for_ico_program,
+    )]
+    pub ico_ata_for_ico_program: Account<'info, TokenAccount>,
+
+    #[account(init, payer=admin, space=9000, seeds=[b"data", admin.key().as_ref()], bump)]
+    pub data: Account<'info, Data>,
+
+    #[account(
+    address = CUSTOM_USDT_MINT.parse::<Pubkey>().unwrap(),
+    )]
+    pub ico_mint: Account<'info, Mint>,
+
+    // #[account(
+    //     init,
+    //     payer = admin,
+    //     token::mint = ico_mint,
+    //     token::authority = admin,
+    //     )]
+    // pub ico_ata_for_admin: Account<'info, TokenAccount>,
+
+    #[account(mut)]
+    pub admin: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
+    pub token_program: Program<'info, Token>,
+    pub rent: Sysvar<'info, Rent>,
+}
+/* 
+-----------------------------------------------------------
+    BuyWithSol struct for buy_with_sol function
+-----------------------------------------------------------
+*/
+#[derive(Accounts)]
+#[instruction(_ico_ata_for_ico_program_bump: u8)]
+pub struct BuyWithSol<'info> {
+    #[account(
+    mut,
+    seeds = [ ico_mint.key().as_ref() ],
+    bump = _ico_ata_for_ico_program_bump,
+    )]
+    pub ico_ata_for_ico_program: Account<'info, TokenAccount>,
+    
+    #[account(mut)]
+    pub data: Account<'info, Data>,
+
+    #[account(
+    address = CUSTOM_USDT_MINT.parse::<Pubkey>().unwrap(),
+)]
+    pub ico_mint: Account<'info, Mint>,
+
+    #[account(
+        init_if_needed,
+        payer = user,
+        token::mint = ico_mint,
+        token::authority = user,
+        )]
+    pub ico_ata_for_user: Account<'info, TokenAccount>,
+
+    #[account(mut)]
+    pub user: Signer<'info>,
+
+    /// CHECK:
+    #[account(mut)]
+    pub admin: AccountInfo<'info>,
+
+     #[account(mut)]
+     /// CHECK: This is safe
+     #[account(address = Pubkey::from_str(SOL_USDC_FEED).unwrap() @ ErrorCode::InvalidPriceFeed)]
+     pub oracle_price_feed: AccountInfo<'info>,
+
+    pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
+}
+
+
+
+
+#[account]
+pub struct Data {
+    pub sol: u64,
+    pub program_sol_vault: Pubkey,
+    pub admin: Pubkey,
+}
+
+pub fn fetch_pyth_price(price_feed_info: &AccountInfo) -> Result<f64> {
+    let price_feed = SolanaPriceAccount::account_info_to_feed(price_feed_info)
+        .map_err(|_| ErrorCode::PriceFetchFailed)?;
+
+    let current_timestamp = Clock::get()?.unix_timestamp;
+    let price = price_feed
+        .get_price_no_older_than(current_timestamp, STALENESS_THRESHOLD)
+        .ok_or(ErrorCode::PriceFetchFailed)?;
+
+    // Convert price to dollars by adjusting with the `expo` value
+    let price_in_dollars = (price.price as f64) * 10f64.powi(price.expo);
+    
+    Ok(price_in_dollars)
+}
+
+#[error_code]
+pub enum ErrorCode {
+    #[msg("Price Fetch Failed")]
+    PriceFetchFailed,
+    #[msg("Invalid Price Feed")]
+    InvalidPriceFeed,
+    #[msg("Invalid Token Account")]
+    InvalidTokenAccount,
+}
+
+
+
+
+
+
 
 //     pub fn buy_sol_with_usdc(ctx: Context<Swap>, usdc_amount: u64) -> Result<()> {
 //         // Use the SOL/USDC oracle price feed from the constant
@@ -121,104 +407,6 @@ pub mod hackaton {
 // }
 
 
-        pub fn create_ico_ata(
-            ctx: Context<CreateIcoATA>,
-            ico_amount: u64,
-            sol_price: u64,
-            usdt_price: u64,
-        ) -> Result<()> {
-            msg!("create program ATA for hold ICO");
-            // transfer ICO admin to program ata
-            let cpi_ctx = CpiContext::new(
-                ctx.accounts.token_program.to_account_info(),
-                token::Transfer {
-                    from: ctx.accounts.ico_ata_for_admin.to_account_info(),
-                    to: ctx.accounts.ico_ata_for_ico_program.to_account_info(),
-                    authority: ctx.accounts.admin.to_account_info(),
-                },
-            );
-            token::transfer(cpi_ctx, ico_amount)?;
-            msg!("send {} ICO to program ATA.", ico_amount);
-
-            // save data in data PDA
-            let data = &mut ctx.accounts.data;
-            data.sol = sol_price;
-            data.usdt = usdt_price;
-            data.admin = *ctx.accounts.admin.key;
-            msg!("save data in program PDA.");
-            Ok(())
-        }
-
-
-        pub fn deposit_ico_in_ata(ctx: Context<DepositIcoInATA>, ico_amount: u64) -> Result<()> {
-            if ctx.accounts.data.admin != *ctx.accounts.admin.key {
-                // return Err(ProgramError::IncorrectProgramId);
-            }
-            // transfer ICO admin to program ata
-            let cpi_ctx = CpiContext::new(
-                ctx.accounts.token_program.to_account_info(),
-                token::Transfer {
-                    from: ctx.accounts.ico_ata_for_admin.to_account_info(),
-                    to: ctx.accounts.ico_ata_for_ico_program.to_account_info(),
-                    authority: ctx.accounts.admin.to_account_info(),
-                },
-            );
-            token::transfer(cpi_ctx, ico_amount)?;
-            msg!("deposit {} ICO in program ATA.", ico_amount);
-            Ok(())
-        }
-
-
-        pub fn buy_with_sol(
-            ctx: Context<BuyWithSol>,
-            _ico_ata_for_ico_program_bump: u8,
-            sol_amount: u64,
-        ) -> Result<()> {
-            // transfer sol from user to admin
-            let ix = anchor_lang::solana_program::system_instruction::transfer(
-                &ctx.accounts.user.key(),
-                &ctx.accounts.admin.key(),
-                sol_amount,
-            );
-            anchor_lang::solana_program::program::invoke(
-                &ix,
-                &[
-                    ctx.accounts.user.to_account_info(),
-                    ctx.accounts.admin.to_account_info(),
-                ],
-            )?;
-            msg!("transfer {} sol to admin.", sol_amount);
-
-            // transfer ICO from program to user ATA
-            let ico_amount = sol_amount * ctx.accounts.data.sol;
-            let ico_mint_address = ctx.accounts.ico_mint.key();
-            let seeds = &[ico_mint_address.as_ref(), &[_ico_ata_for_ico_program_bump]];
-            let signer = [&seeds[..]];
-            let cpi_ctx = CpiContext::new_with_signer(
-                ctx.accounts.token_program.to_account_info(),
-                token::Transfer {
-                    from: ctx.accounts.ico_ata_for_ico_program.to_account_info(),
-                    to: ctx.accounts.ico_ata_for_user.to_account_info(),
-                    authority: ctx.accounts.ico_ata_for_ico_program.to_account_info(),
-                },
-                &signer,
-            );
-            token::transfer(cpi_ctx, ico_amount)?;
-            msg!("transfer {} ico to buyer/user.", ico_amount);
-            Ok(())
-        }
-
-
-
-}
-
-
-
-
-
-
-
-
 
 
 
@@ -263,189 +451,88 @@ pub mod hackaton {
 // }
 
 
-#[derive(Accounts)]
-pub struct CreateIcoATA<'info> {
-    // 1. PDA (pubkey) for ico ATA for our program.
-    // seeds: [ico_mint + current program id] => "HashMap[seeds+bump] = pda"
-    // token::mint: Token Program wants to know what kind of token this ATA is for
-    // token::authority: It's a PDA so the authority is itself!
-    #[account(
-    init,
-    payer = admin,
-    seeds = [ CUSTOM_USDT_MINT.parse::<Pubkey>().unwrap().as_ref() ],
-    bump,
-    token::mint = ico_mint,
-    token::authority = ico_ata_for_ico_program,
-    )]
-    pub ico_ata_for_ico_program: Account<'info, TokenAccount>,
 
-    #[account(init, payer=admin, space=9000, seeds=[b"data", admin.key().as_ref()], bump)]
-    pub data: Account<'info, Data>,
 
-    #[account(
-    address = CUSTOM_USDT_MINT.parse::<Pubkey>().unwrap(),
-    )]
-    pub ico_mint: Account<'info, Mint>,
 
-    #[account(mut)]
-    pub ico_ata_for_admin: Account<'info, TokenAccount>,
 
-    #[account(mut)]
-    pub admin: Signer<'info>,
+// #[derive(Accounts)]
+// pub struct DepositIcoInATA<'info> {
+//     #[account(mut)]
+//     pub ico_ata_for_ico_program: Account<'info, TokenAccount>,
 
-    pub system_program: Program<'info, System>,
-    pub token_program: Program<'info, Token>,
-    pub rent: Sysvar<'info, Rent>,
-}
+//     #[account(mut)]
+//     pub data: Account<'info, Data>,
 
-/* 
------------------------------------------------------------
-    DepositIcoInATA struct for deposit_ico_in_ata function
------------------------------------------------------------
-*/
-#[derive(Accounts)]
-pub struct DepositIcoInATA<'info> {
-    #[account(mut)]
-    pub ico_ata_for_ico_program: Account<'info, TokenAccount>,
+//     #[account(
+//     address = CUSTOM_USDT_MINT.parse::<Pubkey>().unwrap(),
+//     )]
+//     pub ico_mint: Account<'info, Mint>,
 
-    #[account(mut)]
-    pub data: Account<'info, Data>,
+//     #[account(mut)]
+//     pub ico_ata_for_admin: Account<'info, TokenAccount>,
 
-    #[account(
-    address = CUSTOM_USDT_MINT.parse::<Pubkey>().unwrap(),
-    )]
-    pub ico_mint: Account<'info, Mint>,
+//     #[account(mut)]
+//     pub admin: Signer<'info>,
+//     pub token_program: Program<'info, Token>,
+// }
 
-    #[account(mut)]
-    pub ico_ata_for_admin: Account<'info, TokenAccount>,
 
-    #[account(mut)]
-    pub admin: Signer<'info>,
-    pub token_program: Program<'info, Token>,
-}
 
-/* 
------------------------------------------------------------
-    BuyWithSol struct for buy_with_sol function
------------------------------------------------------------
-*/
-#[derive(Accounts)]
-#[instruction(_ico_ata_for_ico_program_bump: u8)]
-pub struct BuyWithSol<'info> {
-    #[account(
-    mut,
-    seeds = [ ico_mint.key().as_ref() ],
-    bump = _ico_ata_for_ico_program_bump,
-    )]
-    pub ico_ata_for_ico_program: Account<'info, TokenAccount>,
 
-    #[account(mut)]
-    pub data: Account<'info, Data>,
+  // pub fn deposit_ico_in_ata(ctx: Context<DepositIcoInATA>, ico_amount: u64) -> Result<()> {
+        //     if ctx.accounts.data.admin != *ctx.accounts.admin.key {
+        //         // return Err(ProgramError::IncorrectProgramId);
+        //     }
+        //     // transfer ICO admin to program ata
+        //     let cpi_ctx = CpiContext::new(
+        //         ctx.accounts.token_program.to_account_info(),
+        //         token::Transfer {
+        //             from: ctx.accounts.ico_ata_for_admin.to_account_info(),
+        //             to: ctx.accounts.ico_ata_for_ico_program.to_account_info(),
+        //             authority: ctx.accounts.admin.to_account_info(),
+        //         },
+        //     );
+        //     token::transfer(cpi_ctx, ico_amount)?;
+        //     msg!("deposit {} ICO in program ATA.", ico_amount);
+        //     Ok(())
+        // }
 
-    #[account(
-    address = CUSTOM_USDT_MINT.parse::<Pubkey>().unwrap(),
-)]
-    pub ico_mint: Account<'info, Mint>,
 
-    #[account(mut)]
-    pub ico_ata_for_user: Account<'info, TokenAccount>,
 
-    #[account(mut)]
-    pub user: Signer<'info>,
 
-    /// CHECK:
-    #[account(mut)]
-    pub admin: AccountInfo<'info>,
 
-    pub token_program: Program<'info, Token>,
-    pub system_program: Program<'info, System>,
-}
 
-/* 
------------------------------------------------------------
-    BuyWithUsdt struct for buy_with_usdt function
------------------------------------------------------------
-*/
-#[derive(Accounts)]
-#[instruction(_ico_ata_for_ico_program_bump: u8)]
-pub struct BuyWithUsdt<'info> {
-    #[account(
-    mut,
-    seeds = [ ico_mint.key().as_ref() ],
-    bump = _ico_ata_for_ico_program_bump,
-    )]
-    pub ico_ata_for_ico_program: Account<'info, TokenAccount>,
 
-    #[account(mut)]
-    pub data: Account<'info, Data>,
 
-    #[account(
-    address = CUSTOM_USDT_MINT.parse::<Pubkey>().unwrap(),
-    )]
-    pub ico_mint: Account<'info, Mint>,
-
-    #[account(mut)]
-    pub ico_ata_for_user: Account<'info, TokenAccount>,
-
-    #[account(mut)]
-    pub usdt_ata_for_user: Account<'info, TokenAccount>,
-
-    #[account(mut)]
-    pub usdt_ata_for_admin: Account<'info, TokenAccount>,
-
-    #[account(mut)]
-    pub user: Signer<'info>,
-
-    pub token_program: Program<'info, Token>,
-}
-
-/* 
------------------------------------------------------------
-    UpdateData struct for update_data function
------------------------------------------------------------
-*/
-#[derive(Accounts)]
-pub struct UpdateData<'info> {
-    #[account(mut)]
-    pub data: Account<'info, Data>,
-    #[account(mut)]
-    pub admin: Signer<'info>,
-    pub system_program: Program<'info, System>,
-}
-
-/* 
------------------------------------------------------------
-    Data struct for PDA Account
------------------------------------------------------------
-*/
-#[account]
-pub struct Data {
-    pub sol: u64,
-    pub usdt: u64,
-    pub admin: Pubkey,
-}
-
-pub fn fetch_pyth_price(price_feed_info: &AccountInfo) -> Result<f64> {
-    let price_feed = SolanaPriceAccount::account_info_to_feed(price_feed_info)
-        .map_err(|_| ErrorCode::PriceFetchFailed)?;
-
-    let current_timestamp = Clock::get()?.unix_timestamp;
-    let price = price_feed
-        .get_price_no_older_than(current_timestamp, STALENESS_THRESHOLD)
-        .ok_or(ErrorCode::PriceFetchFailed)?;
-
-    // Convert price to dollars by adjusting with the `expo` value
-    let price_in_dollars = (price.price as f64) * 10f64.powi(price.expo);
+    #[derive(Accounts)]
+    #[instruction(_ico_ata_for_ico_program_bump: u8)]
+    pub struct BuyWithUsdt<'info> {
+        #[account(
+        mut,
+        seeds = [ ico_mint.key().as_ref() ],
+        bump = _ico_ata_for_ico_program_bump,
+        )]
+        pub ico_ata_for_ico_program: Account<'info, TokenAccount>,
     
-    Ok(price_in_dollars)
-}
-
-#[error_code]
-pub enum ErrorCode {
-    #[msg("Price Fetch Failed")]
-    PriceFetchFailed,
-    #[msg("Invalid Price Feed")]
-    InvalidPriceFeed,
-    #[msg("Invalid Token Account")]
-    InvalidTokenAccount,
-}
+        #[account(mut)]
+        pub data: Account<'info, Data>,
+    
+        #[account(
+        address = CUSTOM_USDT_MINT.parse::<Pubkey>().unwrap(),
+        )]
+        pub ico_mint: Account<'info, Mint>,
+    
+        #[account(mut)]
+        pub ico_ata_for_user: Account<'info, TokenAccount>,
+    
+        #[account(mut)]
+        pub usdt_ata_for_user: Account<'info, TokenAccount>,
+    
+        #[account(mut)]
+        pub usdt_ata_for_admin: Account<'info, TokenAccount>,
+    
+        #[account(mut)]
+        pub user: Signer<'info>,
+    
+        pub token_program: Program<'info, Token>,
+    }
