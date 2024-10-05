@@ -23,7 +23,7 @@ pub mod hackaton {
 
 
         pub fn create_ico_ata(
-            ctx: Context<InitIcoATA>,
+            _ctx: Context<InitIcoATA>,
         ) -> Result<()> {
             msg!("create program ATA for hold ICO");
             // transfer ICO admin to program ata
