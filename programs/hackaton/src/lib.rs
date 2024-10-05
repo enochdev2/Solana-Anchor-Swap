@@ -269,12 +269,12 @@ pub struct BuyWithSol<'info> {
 
 
 
-#[account]
-pub struct Data {
-    pub sol: u64,
-    pub program_sol_vault: Pubkey,
-    pub admin: Pubkey,
-}
+// #[account]
+// pub struct Data {
+//     pub sol: u64,
+//     pub program_sol_vault: Pubkey,
+//     pub admin: Pubkey,
+// }
 
 pub fn fetch_pyth_price(price_feed_info: &AccountInfo) -> Result<f64> {
     let price_feed = SolanaPriceAccount::account_info_to_feed(price_feed_info)
@@ -514,8 +514,8 @@ pub enum ErrorCode {
         )]
         pub ico_ata_for_ico_program: Account<'info, TokenAccount>,
     
-        #[account(mut)]
-        pub data: Account<'info, Data>,
+        // #[account(mut)]
+        // pub data: Account<'info, Data>,
     
         #[account(
         address = CUSTOM_USDT_MINT.parse::<Pubkey>().unwrap(),
